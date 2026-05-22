@@ -1,4 +1,4 @@
-# Learning Journey Assistant
+# Learning Journey Assistant - Latrobe Plus
 
 An AI-powered personalised student learning platform for La Trobe University, designed to analyse student assessment data, predict academic risks, and generate adaptive quizzes and study recommendations.
 
