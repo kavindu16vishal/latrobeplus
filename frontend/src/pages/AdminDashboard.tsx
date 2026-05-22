@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, User, TrendingUp, AlertTriangle, CheckCircle, BookOpen } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar, LineChart, Line } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -13,9 +13,20 @@ const AdminDashboard: React.FC = () => {
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [interventionPlan, setInterventionPlan] = useState<string | null>(null);
   const { token } = useAuth();
+  const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Fetch all students on mount
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
     const fetchStudents = async () => {
       try {
         const res = await axios.get('http://localhost:5000/api/admin/students', {
@@ -35,8 +46,9 @@ const AdminDashboard: React.FC = () => {
   );
 
   const handleSelectStudent = async (student: any) => {
-    setSearchTerm(''); // Clear search 
-    setIsDropdownOpen(false); // Hide dropdown
+    setSearchTerm('');
+    setIsDropdownOpen(false);
+    inputRef.current?.blur();
     
     // Fetch real performance data
     try {
@@ -84,10 +96,11 @@ const AdminDashboard: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Search and analyse individual student trajectories.</p>
         </div>
 
-        <div className="relative w-full md:w-96" onMouseLeave={() => setIsDropdownOpen(false)}>
+        <div className="relative w-full md:w-96" ref={searchRef}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <input
+              ref={inputRef}
               type="text"
               placeholder="Search or select a student..."
               value={searchTerm}
@@ -143,7 +156,7 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedStudent.name}</h3>
-                <p className="text-gray-500 dark:text-gray-400">{selectedStudent.id} • Computer Science</p>
+                <p className="text-gray-500 dark:text-gray-400">{selectedStudent.id}</p>
               </div>
             </div>
             

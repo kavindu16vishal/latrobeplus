@@ -69,3 +69,22 @@ CREATE TABLE IF NOT EXISTS recommendations (
     recommendation_type TEXT,
     generated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    quiz_id INTEGER REFERENCES quizzes(id) ON DELETE CASCADE,
+    score REAL,
+    answers TEXT,
+    completed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_insights (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    gaps TEXT NOT NULL,
+    study_plan TEXT NOT NULL,
+    feedback_analysis TEXT,
+    recommendation TEXT,
+    generated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

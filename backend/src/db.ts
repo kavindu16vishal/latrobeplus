@@ -18,6 +18,13 @@ export const getDb = async () => {
       filename: dbPath,
       driver: sqlite3.Database
     });
+
+    // Auto-apply schema on first connection (CREATE TABLE IF NOT EXISTS is safe)
+    const schemaPath = path.resolve(__dirname, '../../database/schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
+      await dbInstance.exec(schemaSql);
+    }
   }
   return dbInstance;
 };

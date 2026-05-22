@@ -8,13 +8,25 @@ const router = express.Router();
 router.get('/students', authenticateToken, requireRole(['admin', 'lecturer']), async (req, res) => {
   try {
     const students = await query(`
-      SELECT student_id as id, full_name as name 
-      FROM users 
-      WHERE role = 'student'
-      ORDER BY student_id ASC
+      SELECT
+        u.student_id as id,
+        u.full_name as name,
+        u.email,
+        ROUND(COALESCE(AVG(sr.score), 0), 1) as wam
+      FROM users u
+      LEFT JOIN student_results sr ON sr.student_id = u.id
+      WHERE u.role = 'student'
+      GROUP BY u.id, u.student_id, u.full_name, u.email
+      ORDER BY u.student_id ASC
     `);
-    
-    res.json(students.rows);
+
+    const rows = students.rows.map((s: any) => {
+      const wam = Number(s.wam);
+      const status = wam < 50 ? 'At Risk' : wam < 65 ? 'Attention Needed' : 'On Track';
+      return { id: s.id, name: s.name, email: s.email, wam, status };
+    });
+
+    res.json(rows);
   } catch (error) {
     console.error('Error fetching students:', error);
     res.status(500).json({ error: 'Failed to fetch students' });
@@ -78,16 +90,35 @@ router.get('/students/:studentId', authenticateToken, requireRole(['admin', 'lec
       SELECT recommendation_text FROM recommendations WHERE student_id = ?
     `, [user.id]);
 
-    // Simulated Longitudinal Skill Tracking (Progress Trends)
-    // Since we lack timestamps in the Excel, we simulate a semester timeline based on their final WAM
-    const baseScore = Math.max(40, wam - 15);
-    const progressTrends = [
-      { week: 'Week 2', score: baseScore + (Math.random() * 5) },
-      { week: 'Week 4', score: baseScore + (Math.random() * 10) },
-      { week: 'Week 6', score: baseScore + 5 + (Math.random() * 10) },
-      { week: 'Week 8', score: wam - 5 + (Math.random() * 5) },
-      { week: 'Week 10', score: wam },
-    ].map(t => ({ ...t, score: Number(t.score.toFixed(1)) }));
+    // Real progress trends using actual timestamps from student_results
+    const trendResult = await query(`
+      SELECT
+        strftime('%W', sr.created_at) as week_num,
+        strftime('%Y', sr.created_at) as year,
+        AVG(sr.score) as avg_score
+      FROM student_results sr
+      WHERE sr.student_id = ?
+      GROUP BY year, week_num
+      ORDER BY year ASC, week_num ASC
+      LIMIT 10
+    `, [user.id]);
+
+    let progressTrends = trendResult.rows.map((row: any, index: number) => ({
+      week: `Week ${index + 1}`,
+      score: Number(Number(row.avg_score).toFixed(1))
+    }));
+
+    // Deterministic fallback if all results share the same week
+    if (progressTrends.length <= 1) {
+      const baseScore = Math.max(40, wam - 15);
+      progressTrends = [
+        { week: 'Week 2',  score: Number((baseScore).toFixed(1)) },
+        { week: 'Week 4',  score: Number((baseScore + 3).toFixed(1)) },
+        { week: 'Week 6',  score: Number((baseScore + 7).toFixed(1)) },
+        { week: 'Week 8',  score: Number((wam - 3).toFixed(1)) },
+        { week: 'Week 10', score: Number(wam.toFixed(1)) },
+      ];
+    }
 
     res.json({
       id: user.student_id,

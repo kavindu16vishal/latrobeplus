@@ -38,8 +38,8 @@ const AIChatbot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Send message history (excluding the new user msg, it's sent as 'message')
-      const history = messages.filter(m => m.role !== 'assistant' || m.content !== messages[0].content);
+      // Send message history excluding the initial greeting (always index 0)
+      const history = messages.slice(1);
       
       const response = await axios.post(
         'http://localhost:5000/api/chat',

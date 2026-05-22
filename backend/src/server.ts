@@ -5,6 +5,10 @@ import authRoutes from './routes/auth';
 import chatRoutes from './routes/chat';
 import uploadRoutes from './routes/upload';
 import adminRoutes from './routes/admin';
+import studentRoutes from './routes/student';
+import insightsRoutes from './routes/insights';
+import quizzesRoutes from './routes/quizzes';
+import lecturerRoutes from './routes/lecturer';
 
 dotenv.config();
 
@@ -18,6 +22,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/student', studentRoutes);
+app.use('/api/insights', insightsRoutes);
+app.use('/api/quizzes', quizzesRoutes);
+app.use('/api/lecturer', lecturerRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Learning Journey Assistant API is running' });

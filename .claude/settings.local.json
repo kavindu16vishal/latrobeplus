@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5000/api/student/dashboard -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3Nzk0NDk5MjQsImV4cCI6MTc3OTUzNjMyNH0.8c2RU_g0pB4rfgOZTZHsUD_wpyhFALQ03T4eVM1zsJ8')",
+      "Bash(node -e ' *)"
+    ]
+  }
+}
