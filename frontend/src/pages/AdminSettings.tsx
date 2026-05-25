@@ -1,0 +1,493 @@
+import React, { useState, useEffect, useRef, ChangeEvent } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  User, Mail, Camera, Save, Check, Eye, EyeOff,
+  Shield, Bell, Lock, AlertCircle, CheckCircle, ShieldAlert
+} from 'lucide-react';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
+
+type Tab = 'profile' | 'admin' | 'security' | 'notifications';
+
+interface AdminProfile {
+  full_name:    string;
+  avatar:       string | null;
+  bio:          string;
+  title:        string;
+  notify_email: boolean;
+  notify_inapp: boolean;
+}
+
+const TITLES = ['', 'System Administrator', 'Academic Director', 'IT Manager', 'Operations Manager', 'Dr.', 'Prof.'];
+
+const resizeImage = (file: File): Promise<string> =>
+  new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 200;
+      canvas.height = 200;
+      const ctx = canvas.getContext('2d')!;
+      const min = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, 200, 200);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.src = url;
+  });
+
+const AdminSettings: React.FC = () => {
+  const { user, token, updateUser } = useAuth();
+  const [tab, setTab] = useState<Tab>('profile');
+
+  const [profile, setProfile] = useState<AdminProfile>({
+    full_name:    user?.full_name || '',
+    avatar:       null,
+    bio:          '',
+    title:        '',
+    notify_email: true,
+    notify_inapp: true,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [error, setError]     = useState('');
+
+  const [pw, setPw]         = useState({ current: '', next: '', confirm: '' });
+  const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
+  const [pwSaving, setPwSaving]   = useState(false);
+  const [pwError, setPwError]     = useState('');
+  const [pwSuccess, setPwSuccess] = useState(false);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    axios.get('http://localhost:5000/api/admin/profile', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => {
+        const d = r.data;
+        setProfile({
+          full_name:    d.full_name    || '',
+          avatar:       d.avatar       || null,
+          bio:          d.bio          || '',
+          title:        d.title        || '',
+          notify_email: d.notify_email !== 0,
+          notify_inapp: d.notify_inapp !== 0,
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const base64 = await resizeImage(file);
+    setProfile(p => ({ ...p, avatar: base64 }));
+    e.target.value = '';
+  };
+
+  const saveProfile = async () => {
+    if (!profile.full_name.trim()) { setError('Name cannot be empty'); return; }
+    setSaving(true); setError('');
+    try {
+      await axios.put('http://localhost:5000/api/admin/profile', profile, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      updateUser({ full_name: profile.full_name, avatar: profile.avatar });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError('Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changePassword = async () => {
+    setPwError(''); setPwSuccess(false);
+    if (!pw.current)            { setPwError('Enter your current password'); return; }
+    if (pw.next.length < 8)     { setPwError('New password must be at least 8 characters'); return; }
+    if (pw.next !== pw.confirm) { setPwError('Passwords do not match'); return; }
+    setPwSaving(true);
+    try {
+      await axios.post(
+        'http://localhost:5000/api/admin/change-password',
+        { current_password: pw.current, new_password: pw.next },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setPwSuccess(true);
+      setPw({ current: '', next: '', confirm: '' });
+      setTimeout(() => setPwSuccess(false), 4000);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setPwError(msg || 'Failed to change password');
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
+  const pwStrength = (p: string) => {
+    let s = 0;
+    if (p.length >= 8) s++;
+    if (/[A-Z]/.test(p)) s++;
+    if (/[0-9]/.test(p)) s++;
+    if (/[^A-Za-z0-9]/.test(p)) s++;
+    return s;
+  };
+  const strength      = pw.next ? pwStrength(pw.next) : 0;
+  const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][strength];
+  const strengthColor = ['', 'bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'][strength];
+
+  const initials    = profile.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const displayName = profile.title ? `${profile.title} — ${profile.full_name}` : profile.full_name;
+
+  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'profile',       label: 'Profile',        icon: <User size={16} /> },
+    { id: 'admin',         label: 'Admin Details',  icon: <ShieldAlert size={16} /> },
+    { id: 'security',      label: 'Security',       icon: <Shield size={16} /> },
+    { id: 'notifications', label: 'Notifications',  icon: <Bell size={16} /> },
+  ];
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600" />
+    </div>
+  );
+
+  const SaveBtn = ({ label = 'Save' }: { label?: string }) => (
+    <button
+      onClick={saveProfile}
+      disabled={saving}
+      className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-sm transition disabled:opacity-60 ${
+        saved ? 'bg-green-600 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'
+      }`}
+    >
+      {saved ? <><Check size={16} /> Saved!</> : saving ? 'Saving…' : <><Save size={16} /> {label}</>}
+    </button>
+  );
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h2>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your administrator profile and account preferences</p>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => { setTab(t.id); setError(''); setPwError(''); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+              tab === t.id
+                ? 'bg-white dark:bg-gray-900 text-purple-600 dark:text-purple-400 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            {t.icon}
+            <span className="hidden sm:inline">{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+
+          {/* ── Profile ── */}
+          {tab === 'profile' && (
+            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 space-y-6">
+
+              {/* Avatar */}
+              <div className="flex items-center gap-6">
+                <div className="relative flex-shrink-0">
+                  <div className="h-24 w-24 rounded-full overflow-hidden bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center ring-4 ring-purple-50 dark:ring-purple-900/20">
+                    {profile.avatar
+                      ? <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                      : <span className="text-3xl font-bold text-purple-600 dark:text-purple-400">{initials || '?'}</span>
+                    }
+                  </div>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="absolute bottom-0 right-0 bg-purple-600 text-white rounded-full p-1.5 shadow-lg hover:bg-purple-700 transition"
+                  >
+                    <Camera size={14} />
+                  </button>
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white text-lg">{displayName || 'Your Name'}</p>
+                  <p className="text-sm text-gray-400">{user?.email}</p>
+                  <span className="inline-block mt-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full font-semibold">
+                    Administrator
+                  </span>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button onClick={() => fileRef.current?.click()} className="text-xs text-purple-600 dark:text-purple-400 hover:underline">
+                      Change photo
+                    </button>
+                    {profile.avatar && (
+                      <button onClick={() => setProfile(p => ({ ...p, avatar: null }))} className="text-xs text-red-500 hover:underline">
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Full Name</label>
+                <input
+                  type="text"
+                  value={profile.full_name}
+                  onChange={e => setProfile(p => ({ ...p, full_name: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                  placeholder="Your full name"
+                />
+              </div>
+
+              {/* Email — locked */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    <Mail size={14} className="text-gray-400" /> Email Address
+                  </label>
+                  <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Cannot be changed</span>
+                </div>
+                <div className="flex items-center w-full px-4 py-2.5 bg-gray-50/70 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-500 dark:text-gray-400">
+                  <Lock size={13} className="mr-2 text-gray-400 flex-shrink-0" />
+                  {user?.email}
+                </div>
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  About <span className="text-xs text-gray-400 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  value={profile.bio}
+                  onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))}
+                  rows={3}
+                  maxLength={200}
+                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition resize-none"
+                  placeholder="A brief description about yourself…"
+                />
+                <p className="text-xs text-gray-400 mt-1 text-right">{profile.bio.length}/200</p>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-xl">
+                  <AlertCircle size={16} /> {error}
+                </div>
+              )}
+              <div className="flex justify-end"><SaveBtn label="Save Profile" /></div>
+            </div>
+          )}
+
+          {/* ── Admin Details ── */}
+          {tab === 'admin' && (
+            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 space-y-6">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">Admin Details</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Set your role or position title as it appears in the system.</p>
+              </div>
+
+              {/* Role / Position label */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Role / Position</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TITLES.map(t => (
+                    <button
+                      key={t || 'none'}
+                      onClick={() => setProfile(p => ({ ...p, title: t }))}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-semibold border-2 transition text-left ${
+                        profile.title === t
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                      }`}
+                    >
+                      {t || 'No title'}
+                    </button>
+                  ))}
+                </div>
+                {profile.title && (
+                  <p className="text-xs text-gray-400 mt-3">
+                    Your display name: <span className="font-semibold text-gray-700 dark:text-gray-300">{profile.title} — {profile.full_name || 'Your Name'}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Info panel */}
+              <div className="flex items-start gap-3 p-4 rounded-2xl bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-900/40">
+                <ShieldAlert size={18} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-purple-800 dark:text-purple-300">Administrator Access</p>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                    You have full system access including user management, data upload, and notifications. Contact your system owner to change your access level.
+                  </p>
+                </div>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-xl">
+                  <AlertCircle size={16} /> {error}
+                </div>
+              )}
+              <div className="flex justify-end"><SaveBtn label="Save Details" /></div>
+            </div>
+          )}
+
+          {/* ── Security ── */}
+          {tab === 'security' && (
+            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 space-y-6">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">Change Password</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">As an administrator, use a strong unique password to protect the system.</p>
+              </div>
+
+              {(['current', 'next', 'confirm'] as const).map(field => (
+                <div key={field}>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                    {field === 'current' ? 'Current Password' : field === 'next' ? 'New Password' : 'Confirm New Password'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPw[field] ? 'text' : 'password'}
+                      value={pw[field]}
+                      onChange={e => setPw(p => ({ ...p, [field]: e.target.value }))}
+                      className="w-full px-4 py-2.5 pr-12 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+                      placeholder={
+                        field === 'current' ? 'Your current password' :
+                        field === 'next'    ? 'At least 8 characters'  :
+                        'Repeat new password'
+                      }
+                    />
+                    <button
+                      onClick={() => setShowPw(p => ({ ...p, [field]: !p[field] }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                    >
+                      {showPw[field] ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Strength bar */}
+              {pw.next && (
+                <div className="space-y-1.5">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className={`h-1.5 flex-1 rounded-full transition-all ${i <= strength ? strengthColor : 'bg-gray-200 dark:bg-gray-700'}`} />
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {strengthLabel} — {['', 'Add uppercase, numbers or symbols', 'Add a number or symbol', 'Almost there!', 'Great password!'][strength]}
+                  </p>
+                </div>
+              )}
+
+              {/* Requirements */}
+              <div className="space-y-2">
+                {[
+                  { label: 'At least 8 characters',    ok: pw.next.length >= 8 },
+                  { label: 'Contains a number',         ok: /[0-9]/.test(pw.next) },
+                  { label: 'Contains uppercase letter', ok: /[A-Z]/.test(pw.next) },
+                  { label: 'Passwords match',           ok: pw.next.length > 0 && pw.next === pw.confirm },
+                ].map(req => (
+                  <div key={req.label} className="flex items-center gap-2 text-xs">
+                    {req.ok
+                      ? <CheckCircle size={13} className="text-green-500 flex-shrink-0" />
+                      : <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0" />
+                    }
+                    <span className={req.ok ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}>{req.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {pwError && (
+                <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-xl">
+                  <AlertCircle size={16} /> {pwError}
+                </div>
+              )}
+              {pwSuccess && (
+                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-4 py-3 rounded-xl">
+                  <CheckCircle size={16} /> Password changed successfully!
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button
+                  onClick={changePassword}
+                  disabled={pwSaving}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-sm bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-60"
+                >
+                  <Shield size={16} />
+                  {pwSaving ? 'Updating…' : 'Update Password'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Notifications ── */}
+          {tab === 'notifications' && (
+            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 space-y-6">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">Notification Preferences</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Control how you receive system alerts and messages.</p>
+              </div>
+
+              {[
+                {
+                  key: 'notify_email' as const,
+                  label: 'Email Notifications',
+                  desc: 'Receive system alerts, user activity reports, and critical updates via email',
+                  icon: <Mail size={20} className="text-purple-500" />,
+                },
+                {
+                  key: 'notify_inapp' as const,
+                  label: 'In-App Notifications',
+                  desc: 'See at-risk alerts and system updates inside the admin dashboard',
+                  icon: <Bell size={20} className="text-indigo-500" />,
+                },
+              ].map(item => (
+                <div key={item.key} className="flex items-center justify-between p-5 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700 transition">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl flex-shrink-0">{item.icon}</div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{item.label}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setProfile(p => ({ ...p, [item.key]: !p[item.key] }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ml-4 ${
+                      profile[item.key] ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                      profile[item.key] ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+              ))}
+
+              <div className="flex justify-end"><SaveBtn label="Save Preferences" /></div>
+            </div>
+          )}
+
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default AdminSettings;

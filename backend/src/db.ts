@@ -25,6 +25,23 @@ export const getDb = async () => {
       const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
       await dbInstance.exec(schemaSql);
     }
+
+    // Column migrations — safe to re-run, errors are silently swallowed
+    const migrations = [
+      `ALTER TABLE assessments ADD COLUMN due_date TEXT`,
+      `ALTER TABLE users ADD COLUMN avatar TEXT`,
+      `ALTER TABLE users ADD COLUMN bio TEXT`,
+      `ALTER TABLE users ADD COLUMN target_wam REAL DEFAULT 70`,
+      `ALTER TABLE users ADD COLUMN study_goal_hours INTEGER DEFAULT 20`,
+      `ALTER TABLE users ADD COLUMN preferred_study_time TEXT DEFAULT 'morning'`,
+      `ALTER TABLE users ADD COLUMN notify_email INTEGER DEFAULT 1`,
+      `ALTER TABLE users ADD COLUMN notify_inapp INTEGER DEFAULT 1`,
+      `ALTER TABLE users ADD COLUMN title TEXT`,
+      `ALTER TABLE users ADD COLUMN office_hours TEXT`,
+    ];
+    for (const m of migrations) {
+      try { await dbInstance.exec(m); } catch {}
+    }
   }
   return dbInstance;
 };

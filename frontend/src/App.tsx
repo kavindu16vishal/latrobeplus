@@ -12,6 +12,25 @@ import LecturerDashboard from './pages/LecturerDashboard';
 import LecturerStudents from './pages/LecturerStudents';
 import AdminDashboard from './pages/AdminDashboard';
 import DataManagement from './pages/DataManagement';
+import SystemDashboard from './pages/SystemDashboard';
+import UserManagement from './pages/UserManagement';
+import LecturerManagement from './pages/LecturerManagement';
+import SubjectManagement from './pages/SubjectManagement';
+import ResultsManagement from './pages/ResultsManagement';
+import Notifications from './pages/Notifications';
+import GradeCalculator from './pages/GradeCalculator';
+import CompetencyMap from './pages/CompetencyMap';
+import AssessmentCalendar from './pages/AssessmentCalendar';
+import Flashcards from './pages/Flashcards';
+import ExamPrepCoach from './pages/ExamPrepCoach';
+import AssignmentFeedback from './pages/AssignmentFeedback';
+import StudentNotes from './pages/StudentNotes';
+import StudyPlanner from './pages/StudyPlanner';
+import LecturerResults from './pages/LecturerResults';
+import LecturerGroups from './pages/LecturerGroups';
+import StudentSettings from './pages/StudentSettings';
+import LecturerSettings from './pages/LecturerSettings';
+import AdminSettings from './pages/AdminSettings';
 
 const Unauthorized = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
@@ -30,19 +49,23 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+    </div>;
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (!allowedRoles.includes(user.role)) {
-    return <Navigate to="/unauthorized" replace />;
-  }
-
+  if (!user) return <Navigate to="/login" replace />;
+  if (!allowedRoles.includes(user.role)) return <Navigate to="/unauthorized" replace />;
   return <>{children}</>;
 };
+
+const wrap = (Page: React.FC, roles: string[]) => (
+  <ProtectedRoute allowedRoles={roles}>
+    <DashboardLayout>
+      <Page />
+    </DashboardLayout>
+  </ProtectedRoute>
+);
 
 function App() {
   return (
@@ -51,94 +74,42 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
-          
-          <Route 
-            path="/student/dashboard" 
-            element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <DashboardLayout>
-                  <StudentDashboard />
-                </DashboardLayout>
-              </ProtectedRoute>
-            } 
-          />
 
-          <Route 
-            path="/student/insights" 
-            element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <DashboardLayout>
-                  <AIInsights />
-                </DashboardLayout>
-              </ProtectedRoute>
-            } 
-          />
+          {/* ── Student ── */}
+          <Route path="/student/dashboard"           element={wrap(StudentDashboard,   ['student'])} />
+          <Route path="/student/insights"            element={wrap(AIInsights,         ['student'])} />
+          <Route path="/student/tutor"               element={wrap(AITutor,            ['student'])} />
+          <Route path="/student/quizzes"             element={wrap(Quizzes,            ['student'])} />
+          <Route path="/student/grade-calculator"    element={wrap(GradeCalculator,    ['student'])} />
+          <Route path="/student/competency-map"      element={wrap(CompetencyMap,      ['student'])} />
+          <Route path="/student/calendar"            element={wrap(AssessmentCalendar, ['student'])} />
+          <Route path="/student/flashcards"          element={wrap(Flashcards,         ['student'])} />
+          <Route path="/student/exam-prep"           element={wrap(ExamPrepCoach,      ['student'])} />
+          <Route path="/student/assignment-feedback" element={wrap(AssignmentFeedback, ['student'])} />
+          <Route path="/student/notes"               element={wrap(StudentNotes,       ['student'])} />
+          <Route path="/student/study-planner"       element={wrap(StudyPlanner,       ['student'])} />
+          <Route path="/student/settings"            element={wrap(StudentSettings,    ['student'])} />
 
-          <Route
-            path="/student/tutor"
-            element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <DashboardLayout>
-                  <AITutor />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* ── Lecturer ── */}
+          <Route path="/lecturer/dashboard" element={wrap(LecturerDashboard, ['lecturer', 'admin'])} />
+          <Route path="/lecturer/students"  element={wrap(LecturerStudents,  ['lecturer', 'admin'])} />
+          <Route path="/lecturer/results"   element={wrap(LecturerResults,   ['lecturer', 'admin'])} />
+          <Route path="/lecturer/groups"    element={wrap(LecturerGroups,    ['lecturer', 'admin'])} />
+          <Route path="/lecturer/settings" element={wrap(LecturerSettings,  ['lecturer', 'admin'])} />
 
-          <Route
-            path="/student/quizzes"
-            element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <DashboardLayout>
-                  <Quizzes />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-          
-          <Route
-            path="/lecturer/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['lecturer', 'admin']}>
-                <DashboardLayout>
-                  <LecturerDashboard />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* ── Admin God Mode ── */}
+          <Route path="/admin/system"        element={wrap(SystemDashboard,    ['admin'])} />
+          <Route path="/admin/users"         element={wrap(UserManagement,     ['admin'])} />
+          <Route path="/admin/lecturers"     element={wrap(LecturerManagement, ['admin'])} />
+          <Route path="/admin/subjects"      element={wrap(SubjectManagement,  ['admin'])} />
+          <Route path="/admin/results"       element={wrap(ResultsManagement,  ['admin'])} />
+          <Route path="/admin/dashboard"     element={wrap(AdminDashboard,     ['admin'])} />
+          <Route path="/admin/data"          element={wrap(DataManagement,     ['admin'])} />
+          <Route path="/admin/notifications" element={wrap(Notifications,      ['admin'])} />
+          <Route path="/admin/settings"     element={wrap(AdminSettings,      ['admin'])} />
 
-          <Route
-            path="/lecturer/students"
-            element={
-              <ProtectedRoute allowedRoles={['lecturer', 'admin']}>
-                <DashboardLayout>
-                  <LecturerStudents />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <DashboardLayout>
-                  <AdminDashboard />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/data"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <DashboardLayout>
-                  <DataManagement />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* ── Shared Notifications (students & lecturers) ── */}
+          <Route path="/notifications" element={wrap(Notifications, ['student', 'lecturer'])} />
 
           <Route path="/unauthorized" element={<Unauthorized />} />
           <Route path="*" element={<Navigate to="/login" replace />} />

@@ -16,6 +16,28 @@
   --color-primary-950: #172554;
 }
 
+
+@keyframes red-sweep {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.login-bg {
+  background: linear-gradient(
+    -45deg,
+    #c04747,
+    #8b1a1a,
+    #6e0e0e,
+    #a83232,
+    #7a1515,
+    #b03a3a,
+    #8b1a1a
+  );
+  background-size: 400% 400%;
+  animation: red-sweep 10s ease infinite;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

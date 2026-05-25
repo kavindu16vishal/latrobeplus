@@ -1,4 +1,5 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { query } from '../db';
 
@@ -115,6 +116,51 @@ router.get('/dashboard', authenticateToken, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Student dashboard error:', error);
     res.status(500).json({ error: 'Failed to fetch dashboard data' });
+  }
+});
+
+// GET /api/student/profile
+router.get('/profile', authenticateToken, async (req: AuthRequest, res): Promise<void> => {
+  try {
+    const result = await query(
+      `SELECT id, full_name, email, student_id, avatar, bio, target_wam, study_goal_hours, preferred_study_time, notify_email, notify_inapp FROM users WHERE id = ?`,
+      [req.user?.id]
+    );
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ error: 'Failed to load profile' });
+  }
+});
+
+// PUT /api/student/profile
+router.put('/profile', authenticateToken, async (req: AuthRequest, res): Promise<void> => {
+  try {
+    const { full_name, avatar, bio, target_wam, study_goal_hours, preferred_study_time, notify_email, notify_inapp } = req.body;
+    if (!full_name?.trim()) { res.status(400).json({ error: 'Name is required' }); return; }
+    await query(
+      `UPDATE users SET full_name = ?, avatar = ?, bio = ?, target_wam = ?, study_goal_hours = ?, preferred_study_time = ?, notify_email = ?, notify_inapp = ? WHERE id = ?`,
+      [full_name.trim(), avatar ?? null, bio ?? null, target_wam ?? 70, study_goal_hours ?? 20, preferred_study_time ?? 'morning', notify_email ? 1 : 0, notify_inapp ? 1 : 0, req.user?.id]
+    );
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// POST /api/student/change-password
+router.post('/change-password', authenticateToken, async (req: AuthRequest, res): Promise<void> => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!new_password || new_password.length < 8) { res.status(400).json({ error: 'New password must be at least 8 characters' }); return; }
+    const userResult = await query(`SELECT password_hash FROM users WHERE id = ?`, [req.user?.id]);
+    const user = userResult.rows[0];
+    const valid = await bcrypt.compare(current_password, user.password_hash);
+    if (!valid) { res.status(400).json({ error: 'Current password is incorrect' }); return; }
+    const hash = await bcrypt.hash(new_password, 12);
+    await query(`UPDATE users SET password_hash = ? WHERE id = ?`, [hash, req.user?.id]);
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 

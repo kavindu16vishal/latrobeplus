@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, KeyRound, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { KeyRound, Mail, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const DEMO_ACCOUNTS = [
@@ -30,7 +30,7 @@ const Login: React.FC = () => {
       });
       login(response.data.token, response.data.user);
       const role = response.data.user.role;
-      navigate(role === 'student' ? '/student/dashboard' : role === 'lecturer' ? '/lecturer/dashboard' : '/admin/dashboard');
+      navigate(role === 'student' ? '/student/dashboard' : role === 'lecturer' ? '/lecturer/dashboard' : '/admin/system');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to login. Please check your credentials.');
     } finally {
@@ -51,23 +51,18 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-950 dark:to-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="login-bg min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <motion.div whileHover={{ scale: 1.05 }} className="bg-blue-600 p-3 rounded-2xl shadow-lg">
-            <BookOpen className="h-10 w-10 text-white" />
-          </motion.div>
+          <img src="/logo.png" alt="La Trobe+" className="h-24 w-auto" />
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-          Learning Journey Assistant
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+        <p className="mt-1 text-center text-sm text-white">
           La Trobe University · Personalised Learning Platform
         </p>
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white dark:bg-gray-800 py-8 px-6 shadow-2xl sm:rounded-3xl border border-gray-100 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 py-8 px-6 shadow-2xl border border-gray-100 dark:border-gray-700">
 
           <form className="space-y-5" onSubmit={doLogin}>
             {error && (
@@ -85,7 +80,7 @@ const Login: React.FC = () => {
                   type="email" required value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="student@latrobe.edu"
-                  className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition"
+                  className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition"
                 />
               </div>
             </div>
@@ -98,7 +93,7 @@ const Login: React.FC = () => {
                   type="password" required value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition"
+                  className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition"
                 />
               </div>
             </div>
@@ -106,7 +101,7 @@ const Login: React.FC = () => {
             <motion.button
               type="submit" disabled={isLoading}
               whileTap={{ scale: 0.98 }}
-              className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl shadow text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="w-full flex justify-center items-center gap-2 py-2.5 px-4 shadow text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 transition focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               {isLoading ? <><Loader2 size={16} className="animate-spin" /> Signing in…</> : 'Sign in'}
             </motion.button>

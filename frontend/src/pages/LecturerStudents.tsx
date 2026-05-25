@@ -1,17 +1,24 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Users, AlertTriangle, CheckCircle, Clock, ChevronRight, Loader2, ArrowUpDown } from 'lucide-react';
+import { Search, Users, AlertTriangle, CheckCircle, Clock, ChevronRight, Loader2, ArrowUpDown, UserPlus, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import StudentSlideOver from '../components/StudentSlideOver';
 
 interface StudentRow {
+  db_id: number;
   id: string;
   name: string;
   email: string;
   wam: number;
   status: 'On Track' | 'Attention Needed' | 'At Risk';
+}
+
+interface Group {
+  id: number;
+  name: string;
+  color: string;
 }
 
 type FilterStatus = 'All' | 'At Risk' | 'Attention Needed' | 'On Track';
@@ -47,15 +54,56 @@ const LecturerStudents: React.FC = () => {
   const [sortAsc, setSortAsc] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Sync filterStatus when URL query param changes (e.g. sidebar Quick Filters)
   useEffect(() => {
-    axios
-      .get('http://localhost:5000/api/admin/students', {
-        headers: { Authorization: `Bearer ${token}` },
+    const param = searchParams.get('status');
+    if (param === 'At Risk' || param === 'Attention Needed' || param === 'On Track') setFilterStatus(param);
+    else setFilterStatus('All');
+  }, [searchParams]);
+
+  // Group assignment
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupPopover, setGroupPopover] = useState<number | null>(null); // student db_id
+  const [addedToGroup, setAddedToGroup] = useState<number | null>(null); // flash success
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      axios.get('http://localhost:5000/api/admin/students', { headers }),
+      axios.get('http://localhost:5000/api/lecturer/groups', { headers }),
+    ])
+      .then(([studRes, grpRes]) => {
+        setStudents(studRes.data);
+        setGroups(grpRes.data);
       })
-      .then(r => setStudents(r.data))
       .catch(() => setError('Could not load student list. Make sure the server is running.'))
       .finally(() => setLoading(false));
   }, [token]);
+
+  // Close popover on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setGroupPopover(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const addToGroup = async (groupId: number, studentDbId: number) => {
+    try {
+      await axios.post(
+        `http://localhost:5000/api/lecturer/groups/${groupId}/members`,
+        { student_db_ids: [studentDbId] },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setGroupPopover(null);
+      setAddedToGroup(studentDbId);
+      setTimeout(() => setAddedToGroup(null), 2500);
+    } catch { /* silent */ }
+  };
 
   const counts = useMemo(() => ({
     all: students.length,
@@ -211,10 +259,11 @@ const LecturerStudents: React.FC = () => {
         {/* Table header */}
         <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
           <div className="col-span-1 text-xs font-semibold text-gray-400">#</div>
-          <div className="col-span-4"><SortBtn k="name" label="Name" /></div>
+          <div className="col-span-3"><SortBtn k="name" label="Name" /></div>
           <div className="col-span-2"><SortBtn k="id" label="Student ID" /></div>
           <div className="col-span-2"><SortBtn k="wam" label="WAM" /></div>
           <div className="col-span-2"><SortBtn k="status" label="Status" /></div>
+          <div className="col-span-1 text-xs font-semibold text-gray-400">Group</div>
           <div className="col-span-1" />
         </div>
 
@@ -224,46 +273,88 @@ const LecturerStudents: React.FC = () => {
             <div className="p-12 text-center text-gray-400 text-sm">No students match your search.</div>
           ) : (
             filtered.map((s, i) => (
-              <motion.button
+              <div
                 key={s.id}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: Math.min(i * 0.015, 0.3) }}
-                whileHover={{ backgroundColor: 'rgba(59,130,246,0.04)' }}
-                whileTap={{ scale: 0.995 }}
-                onClick={() => setSelectedId(s.id)}
-                className="w-full grid grid-cols-12 gap-4 px-5 py-3.5 text-left transition-colors hover:bg-blue-50/40 dark:hover:bg-blue-900/10 cursor-pointer"
+                className="w-full grid grid-cols-12 gap-4 px-5 py-3.5 text-left hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors items-center"
               >
-                <div className="col-span-1 text-xs text-gray-400 flex items-center">{i + 1}</div>
-                <div className="col-span-4 flex items-center">
+                <div className="col-span-1 text-xs text-gray-400">{i + 1}</div>
+                <motion.button
+                  initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: Math.min(i * 0.015, 0.3) }}
+                  onClick={() => setSelectedId(s.id)}
+                  className="col-span-3 flex items-center text-left"
+                >
                   <div className="h-8 w-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                      {s.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      {s.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                     </span>
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{s.name}</p>
                     <p className="text-xs text-gray-400 truncate">{s.email}</p>
                   </div>
-                </div>
-                <div className="col-span-2 flex items-center">
+                </motion.button>
+                <div className="col-span-2">
                   <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">{s.id}</span>
                 </div>
-                <div className="col-span-2 flex items-center">
+                <div className="col-span-2">
                   <span className={`text-sm font-bold ${s.wam >= 70 ? 'text-green-600' : s.wam >= 50 ? 'text-orange-500' : 'text-red-600'}`}>
                     {s.wam.toFixed(1)}%
                   </span>
                 </div>
-                <div className="col-span-2 flex items-center">
+                <div className="col-span-2">
                   <span className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full font-semibold ${STATUS_BADGE[s.status] || ''}`}>
-                    {STATUS_ICON[s.status]}
-                    {s.status}
+                    {STATUS_ICON[s.status]}{s.status}
                   </span>
                 </div>
-                <div className="col-span-1 flex items-center justify-end">
-                  <ChevronRight size={16} className="text-gray-300 dark:text-gray-600" />
+
+                {/* Add to Group */}
+                <div className="col-span-1 relative" ref={groupPopover === s.db_id ? popoverRef : null}>
+                  {addedToGroup === s.db_id ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <CheckCircle2 size={12} /> Added
+                    </span>
+                  ) : (
+                    <button
+                      onClick={e => { e.stopPropagation(); setGroupPopover(groupPopover === s.db_id ? null : s.db_id); }}
+                      className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-2 py-1 rounded-lg transition"
+                      title="Add to group"
+                    >
+                      <UserPlus size={12} />
+                    </button>
+                  )}
+                  <AnimatePresence>
+                    {groupPopover === s.db_id && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                        className="absolute left-0 top-8 z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl min-w-44 py-1"
+                      >
+                        <p className="text-xs text-gray-400 px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">Add to group</p>
+                        {groups.length === 0 ? (
+                          <p className="text-xs text-gray-400 px-3 py-2">No groups yet</p>
+                        ) : (
+                          groups.map(g => (
+                            <button
+                              key={g.id}
+                              onClick={() => addToGroup(g.id, s.db_id)}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition text-left"
+                            >
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: g.color }} />
+                              {g.name}
+                            </button>
+                          ))
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </motion.button>
+
+                <div className="col-span-1 flex items-center justify-end">
+                  <button onClick={() => setSelectedId(s.id)}>
+                    <ChevronRight size={16} className="text-gray-300 dark:text-gray-600" />
+                  </button>
+                </div>
+              </div>
             ))
           )}
         </div>

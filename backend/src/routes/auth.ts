@@ -54,7 +54,7 @@ router.post('/login', async (req, res): Promise<void> => {
 router.get('/me', authenticateToken, async (req: AuthRequest, res): Promise<void> => {
   try {
     const userResult = await query(
-      'SELECT id, full_name, email, role, student_id FROM users WHERE id = ?',
+      'SELECT id, full_name, email, role, student_id, avatar, bio, target_wam, study_goal_hours, preferred_study_time, notify_email, notify_inapp FROM users WHERE id = ?',
       [req.user?.id]
     );
 

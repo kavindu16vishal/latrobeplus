@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { TrendingUp, BookOpen, Brain, Target, AlertTriangle, CheckCircle, Loader2, ChevronRight } from 'lucide-react';
+import { TrendingUp, BookOpen, Brain, Target, AlertTriangle, CheckCircle, Loader2, ChevronRight, Flame, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+
+interface StreakData { streak: number; longest: number; last: string | null; }
+interface BenchmarkSubject { subject: string; my_score: number; cohort_avg: number; percentile: number; }
+
 
 interface DashboardData {
   wam: string | null;
@@ -29,23 +33,33 @@ const StudentDashboard: React.FC = () => {
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardData | null>(null);
+  const [streak, setStreak] = useState<StreakData | null>(null);
+  const [benchmarks, setBenchmarks] = useState<BenchmarkSubject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const fetchDashboard = async () => {
+    const headers = { Authorization: `Bearer ${token}` };
+    const fetchAll = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/student/dashboard', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setData(res.data);
+        const [dashRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/student/dashboard', { headers }),
+          axios.post('http://localhost:5000/api/student-features/streak/ping', {}, { headers }).catch(() => {}),
+        ]);
+        setData(dashRes.data);
+        const [streakRes, benchRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/student-features/streak', { headers }).catch(() => null),
+          axios.get('http://localhost:5000/api/student-features/benchmarks', { headers }).catch(() => null),
+        ]);
+        if (streakRes) setStreak(streakRes.data);
+        if (benchRes) setBenchmarks(benchRes.data);
       } catch {
         setError('Could not load your dashboard. Make sure the server is running.');
       } finally {
         setLoading(false);
       }
     };
-    fetchDashboard();
+    fetchAll();
   }, [token]);
 
   if (loading) {
@@ -167,6 +181,64 @@ const StudentDashboard: React.FC = () => {
           </div>
           <ChevronRight size={16} className="text-gray-300 dark:text-gray-600 ml-2" />
         </motion.div>
+      </div>
+
+      {/* Streak + Benchmark row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Study Streak */}
+        {streak && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+            onClick={() => navigate('/student/study-planner')}
+            className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-3xl p-5 text-white cursor-pointer hover:shadow-lg transition-all">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-orange-100 text-sm font-medium">Study Streak</p>
+                <div className="flex items-end gap-2 mt-1">
+                  <p className="text-5xl font-bold">{streak.streak}</p>
+                  <p className="text-orange-200 mb-1 text-lg">days</p>
+                </div>
+                <p className="text-orange-100 text-xs mt-1">Longest: {streak.longest} days</p>
+              </div>
+              <div className="bg-white/20 rounded-2xl p-4">
+                <Flame size={32} className="text-white" />
+              </div>
+            </div>
+            <p className="text-orange-100 text-xs mt-3">Visit the app daily to maintain your streak →</p>
+          </motion.div>
+        )}
+
+        {/* Peer Benchmark */}
+        {benchmarks.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+            className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Users size={18} className="text-indigo-500" />
+              <h3 className="font-bold text-gray-900 dark:text-white">Peer Benchmarking</h3>
+            </div>
+            <div className="space-y-3">
+              {benchmarks.slice(0, 3).map((b) => (
+                <div key={b.subject}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">{b.subject}</span>
+                    <span className={`text-xs font-bold ${b.my_score >= b.cohort_avg ? 'text-green-600' : 'text-red-500'}`}>
+                      {b.my_score >= b.cohort_avg ? `+${(b.my_score - b.cohort_avg).toFixed(1)}%` : `${(b.my_score - b.cohort_avg).toFixed(1)}%`} vs avg
+                    </span>
+                  </div>
+                  <div className="relative w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
+                    <div className="h-2 bg-indigo-200 dark:bg-indigo-900 rounded-full" style={{ width: `${b.cohort_avg}%` }} />
+                    <div className={`absolute top-0 h-2 rounded-full ${b.my_score >= b.cohort_avg ? 'bg-green-500' : 'bg-red-400'}`}
+                      style={{ width: `${Math.min(b.my_score, 100)}%` }} />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                    <span>You: {b.my_score.toFixed(1)}%</span>
+                    <span>Top {100 - b.percentile}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

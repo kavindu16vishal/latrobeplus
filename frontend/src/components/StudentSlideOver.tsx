@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { X, User, Mail, Loader2 } from 'lucide-react';
+import { X, User, Mail, Loader2, Bell, Send, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 
 interface Props {
@@ -19,10 +19,30 @@ const STATUS_COLOUR: Record<string, string> = {
 const StudentSlideOver: React.FC<Props> = ({ studentId, token, onClose }) => {
   const [detail, setDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifBody, setNotifBody] = useState('');
+  const [notifSending, setNotifSending] = useState(false);
+  const [notifSent, setNotifSent] = useState(false);
+
+  const sendNotification = async () => {
+    if (!notifTitle || !notifBody || !detail?.db_id) return;
+    setNotifSending(true);
+    try {
+      await axios.post('http://localhost:5000/api/lecturer/notify',
+        { student_ids: [detail.db_id], title: notifTitle, body: notifBody },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNotifSent(true);
+      setNotifTitle(''); setNotifBody('');
+    } catch { /* silent */ }
+    finally { setNotifSending(false); }
+  };
 
   useEffect(() => {
     setLoading(true);
     setDetail(null);
+    setNotifOpen(false); setNotifSent(false);
     axios
       .get(`http://localhost:5000/api/admin/students/${studentId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -148,13 +168,58 @@ const StudentSlideOver: React.FC<Props> = ({ studentId, token, onClose }) => {
 
       {/* Footer */}
       {detail && (
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
           <a
             href={`mailto:${detail.email}?subject=Academic%20Progress%20Check-in`}
             className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
           >
             <Mail size={15} /> Contact Student
           </a>
+
+          {/* Inline notification sender */}
+          {notifSent ? (
+            <div className="flex items-center justify-center gap-2 text-green-600 dark:text-green-400 text-sm font-medium py-2">
+              <CheckCircle size={15} /> Notification sent!
+            </div>
+          ) : !notifOpen ? (
+            <button
+              onClick={() => setNotifOpen(true)}
+              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-sm font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition"
+            >
+              <Bell size={15} /> Send Notification
+            </button>
+          ) : (
+            <div className="space-y-2 pt-1">
+              <input
+                value={notifTitle}
+                onChange={e => setNotifTitle(e.target.value)}
+                placeholder="Notification title…"
+                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <textarea
+                value={notifBody}
+                onChange={e => setNotifBody(e.target.value)}
+                rows={3}
+                placeholder="Message to student…"
+                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setNotifOpen(false); setNotifTitle(''); setNotifBody(''); }}
+                  className="flex-1 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                >Cancel</button>
+                <button
+                  onClick={sendNotification}
+                  disabled={notifSending || !notifTitle || !notifBody}
+                  className="flex-1 py-2 text-sm bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition disabled:opacity-50 flex items-center justify-center gap-1"
+                >
+                  {notifSending
+                    ? <div className="animate-spin rounded-full h-4 w-4 border-b border-white" />
+                    : <><Send size={13} /> Send</>}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </motion.div>
